@@ -377,3 +377,51 @@ function _bound_quantiles(qs)
     end
     [min(1, max(0, q)) for q = qs]
 end
+
+## Linear Regression ##
+
+# The structure returned by the lm function, includes basic statistics
+type lm_fit
+	coefficients::Array
+	residuals::Array
+	r_2::Float64
+end
+
+function lm(X, y, method)
+	
+	# Need to add column of 1's for the intercept term
+	X = [ones(length(y), 1) X];
+	(m, n) = size(X);
+
+	# Compute the coefficients based on the selected method
+	if method == "QR"
+		# QR decomposition
+		(Q, R) = qr(X);
+		coefficients = R[1:n, 1:n] \ (Q[:, 1:n]' * y)
+		coefficients = [coefficients[length(coefficients)]; coefficients[1:(length(coefficients) - 1)]]
+	elseif method == "SVD"
+		# SVD decomposition
+		(U, S, V) = svd(X);
+		c = U' * y; c1 = c[1:n]; c2 = c[n+1:m];
+		z1 = c1 ./ S;
+		coefficients = V' * z1
+	elseif method == "Normal"
+		# Simple normal equations		
+		coefficients = inv(X'*X) * X' * y
+	end
+
+	# Store the residuals
+	residuals = (X * coefficients)
+
+	# Compute the R^2
+	tss = sum((y - mean(y)).^2)
+	rss = sum((y - residuals).^2)
+	r_2 = 1 - (rss/tss)
+
+	return lm_fit(coefficients, residuals, r_2)
+end
+
+function lm(X, y)
+	return lm(X, y, "QR")
+end
+
